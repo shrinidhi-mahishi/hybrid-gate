@@ -24,7 +24,7 @@ Question
 ## Quick start
 
 ```bash
-cd hybrid_gate
+cd hybrid-gate
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
