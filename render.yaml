@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: hybrid-gate
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ENFORCE_HYBRID_GATE
+        value: "true"
+      - key: USE_LLM
+        value: "false"
+      - key: DATA_DIR
+        value: data
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PYTHONUNBUFFERED
+        value: "1"

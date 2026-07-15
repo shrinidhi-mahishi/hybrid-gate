@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HybridGate — SQL + Policy Dual Citation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #0f1412; --bg1: #17201c; --ink: #eaf2ec; --muted: #8fa396;
+      --accent: #3ecf8e; --accent2: #e2b457; --line: #2a3831; --card: #121a17;
+      --good: #6fbf8a; --bad: #e07a6a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: Manrope, system-ui, sans-serif; color: var(--ink);
+      background:
+        radial-gradient(900px 480px at 0% 0%, #1c3a2c 0%, transparent 55%),
+        radial-gradient(800px 420px at 100% 0%, #3a2e14 0%, transparent 50%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+    }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 2.2rem 1.2rem 4rem; }
+    .brand { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.6rem; }
+    h1 { font-size: clamp(1.7rem, 4vw, 2.45rem); margin: 0 0 0.65rem; max-width: 16ch; line-height: 1.12; }
+    .lede { color: var(--muted); max-width: 42rem; line-height: 1.55; margin: 0 0 1.3rem; }
+    textarea {
+      width: 100%; min-height: 96px; background: var(--card); color: var(--ink);
+      border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem; font: inherit;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.8rem 0; align-items: center; }
+    button, select {
+      font: inherit; font-weight: 600; border-radius: 8px; padding: 0.65rem 1rem;
+      border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: #062016; border: none; }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .examples { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+    .examples button { text-align: left; font-weight: 500; color: var(--muted); border-style: dashed; }
+    .grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 1rem; margin-top: 1.3rem; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; }
+    h2 { font-size: 0.76rem; letter-spacing: 0.06em; text-transform: uppercase;
+      font-family: "IBM Plex Mono", monospace; color: var(--accent2); margin: 0 0 0.7rem; }
+    pre { white-space: pre-wrap; word-break: break-word; font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem; line-height: 1.45; margin: 0; }
+    .badge { display: inline-block; padding: 0.25rem 0.55rem; border-radius: 999px;
+      font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; margin-bottom: 0.6rem; }
+    .badge.ALLOW { background: rgba(111,191,138,0.15); color: var(--good); }
+    .badge.BLOCK { background: rgba(224,122,106,0.15); color: var(--bad); }
+    .status { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; color: var(--muted); }
+    .error { color: var(--bad); margin-top: 0.5rem; }
+    .cite { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; color: var(--muted);
+      border: 1px solid var(--line); border-radius: 6px; padding: 0.35rem 0.5rem; margin: 0.25rem 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">HybridGate · SQL warehouse + policy docs · dual citation</div>
+    <h1>No answer without both sources</h1>
+    <p class="lede">
+      Enterprise questions often need structured facts and contract language.
+      HybridGate retrieves both, then blocks responses that lack dual-source citations.
+    </p>
+
+    <textarea id="q" placeholder="Ask a pricing, discount, account, or compliance question…"></textarea>
+    <div class="row">
+      <select id="mode">
+        <option value="hybrid">Hybrid (SQL + docs)</option>
+        <option value="sql_only">SQL only (expect BLOCK)</option>
+        <option value="docs_only">Docs only (expect BLOCK)</option>
+      </select>
+      <button class="primary" id="ask">Ask HybridGate</button>
+    </div>
+    <div class="examples" id="examples"></div>
+    <div class="status" id="status"></div>
+    <div class="error" id="error"></div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Gate + answer</h2>
+        <div id="badge"></div>
+        <pre id="answer">Ask a question to see ALLOW / BLOCK decisions.</pre>
+      </div>
+      <div class="panel">
+        <h2>Evidence</h2>
+        <div id="evidence"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const status = document.getElementById("status");
+    const error = document.getElementById("error");
+
+    async function loadExamples() {
+      const res = await fetch("/api/examples");
+      const data = await res.json();
+      const box = document.getElementById("examples");
+      data.examples.forEach((ex) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = ex;
+        b.onclick = () => { document.getElementById("q").value = ex; };
+        box.appendChild(b);
+      });
+    }
+
+    function show(data) {
+      const decision = data.gate?.decision || (data.allowed ? "ALLOW" : "BLOCK");
+      const badge = document.getElementById("badge");
+      badge.className = "badge " + decision;
+      badge.textContent = `${decision} · ${data.gate?.rule_id || ""}`;
+      document.getElementById("answer").textContent = data.answer || "";
+
+      const ev = document.getElementById("evidence");
+      const sqlCites = (data.sql?.citations || []).map(c => `<div class="cite">${c}</div>`).join("");
+      const docCites = (data.documents || []).map(d =>
+        `<div class="cite">${d.citation_id}<br/>${d.title}</div>`
+      ).join("");
+      const violations = (data.gate?.violations || []).map(v => `<div class="cite" style="color:#e07a6a">${v}</div>`).join("");
+      ev.innerHTML = `
+        <strong>SQL citations</strong>${sqlCites || "<div class='cite'>none</div>"}
+        <br/><strong>Doc citations</strong>${docCites || "<div class='cite'>none</div>"}
+        <br/><strong>Violations</strong>${violations || "<div class='cite'>none</div>"}
+        <br/><strong>SQL rows</strong>
+        <pre>${JSON.stringify(data.sql?.rows || [], null, 2)}</pre>
+      `;
+    }
+
+    document.getElementById("ask").onclick = async () => {
+      error.textContent = "";
+      const question = document.getElementById("q").value.trim();
+      if (question.length < 3) return;
+      const btn = document.getElementById("ask");
+      btn.disabled = true;
+      status.textContent = "Retrieving SQL + docs, evaluating HybridGate…";
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            question,
+            mode: document.getElementById("mode").value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "ask failed");
+        show(data);
+        status.textContent = data.allowed ? "Released" : "Blocked — missing dual evidence";
+      } catch (e) {
+        error.textContent = e.message || String(e);
+        status.textContent = "";
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    loadExamples().catch(() => {});
+  </script>
+</body>
+</html>
